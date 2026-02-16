@@ -1,0 +1,87 @@
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+
+name: FastAPI CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    steps:
+      - name: Checkout code
+        uses: cloudbees-io/checkout@v1
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint with flake8
+        run: |
+          # Stop the build if there are Python syntax errors or undefined names
+          flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Exit-zero treats all errors as warnings
+          flake8 app/ --count --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Run tests with pytest
+        run: |
+          pytest tests/ -v --cov=app --cov-report=xml --cov-report=html --cov-report=term-missing
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: htmlcov/
+
+      - name: Security check with safety
+        run: |
+          pip install safety
+          safety check --json || true
+
+  build-docker:
+    needs: build-and-test
+    steps:
+      - name: Checkout code
+        uses: cloudbees-io/checkout@v1
+
+      - name: Configure container registry credentials
+        uses: cloudbees-io/configure-ecr-credentials@v1
+
+      - name: Build Docker image
+        uses: cloudbees-io/kaniko@v1
+        with:
+          destination: fastapi-demo-app:${{ cloudbees.version }}
+          labels: version=${{ cloudbees.version }},build=${{ cloudbees.run_id }}
+
+      - name: Tag latest
+        run: |
+          docker tag fastapi-demo-app:${{ cloudbees.version }} fastapi-demo-app:latest
+
+  deploy-staging:
+    needs: build-docker
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging environment..."
+          echo "Image: fastapi-demo-app:${{ cloudbees.version }}"
+          # Add your deployment commands here
