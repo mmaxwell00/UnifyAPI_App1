@@ -5,6 +5,7 @@ from datetime import datetime
 
 app = FastAPI(title="Task Manager API", version="1.0.0")
 
+
 class Task(BaseModel):
     id: Optional[int] = None
     title: str
@@ -12,8 +13,10 @@ class Task(BaseModel):
     completed: bool = False
     created_at: Optional[str] = None
 
+
 tasks_db = []
 task_id_counter = 1
+
 
 @app.get("/")
 def read_root():
@@ -23,6 +26,7 @@ def read_root():
         "docs": "/docs"
     }
 
+
 @app.get("/health")
 def health_check():
     return {
@@ -30,9 +34,11 @@ def health_check():
         "timestamp": datetime.utcnow().isoformat()
     }
 
+
 @app.get("/tasks", response_model=List[Task])
 def get_tasks():
     return tasks_db
+
 
 @app.get("/tasks/{task_id}", response_model=Task)
 def get_task(task_id: int):
@@ -40,6 +46,7 @@ def get_task(task_id: int):
         if task["id"] == task_id:
             return task
     raise HTTPException(status_code=404, detail="Task not found")
+
 
 @app.post("/tasks", response_model=Task, status_code=201)
 def create_task(task: Task):
@@ -54,6 +61,7 @@ def create_task(task: Task):
 
     return task_dict
 
+
 @app.put("/tasks/{task_id}", response_model=Task)
 def update_task(task_id: int, task: Task):
     for i, existing_task in enumerate(tasks_db):
@@ -64,6 +72,7 @@ def update_task(task_id: int, task: Task):
             tasks_db[i] = task_dict
             return task_dict
     raise HTTPException(status_code=404, detail="Task not found")
+
 
 @app.delete("/tasks/{task_id}", status_code=204)
 def delete_task(task_id: int):
